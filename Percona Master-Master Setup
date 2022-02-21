@@ -1,0 +1,67 @@
+#Install all depandences and prepare the servers
+sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y && sudo reboot
+sudo apt-get autoremove -y && sudo apt-get autoclean -y
+sudo add-apt-repository universe &&  sudo add-apt-repository multiverse
+sudo apt-get install gnupg2 -y
+
+#install Percona 
+wget https://repo.percona.com/apt/percona-release_latest.$(lsb_release -sc)_all.deb
+dpkg -i percona-release_latest.bionic_all.deb
+apt-get update
+apt-get -y install percona-xtradb-cluster-57
+
+#Make sure to add these lines to configuration file /etc/mysql/percona-xtradb-cluster.conf.d/wsrep.cnf for the first node
+nano /etc/mysql/percona-xtradb-cluster.conf.d/wsrep.cnf 
+
+---------------------------------
+[mysqld]
+# Path to Galera library
+wsrep_provider=/usr/lib/galera3/libgalera_smm.so
+
+# Cluster connection URL contains IPs of nodes
+#If no IP is found, this implies that a new cluster needs to be created,
+#in order to do that you need to bootstrap this node
+wsrep_cluster_address=gcomm://xxx.xxx.xxx.xxx,xxx.xxx.xxx.xxx ( (change ip to 1 and 2 as needed))
+
+# In order for Galera to work correctly binlog format should be ROW
+binlog_format=ROW
+
+# MyISAM storage engine has only experimental support
+default_storage_engine=InnoDB
+
+# Slave thread to use
+wsrep_slave_threads= 8
+
+wsrep_log_conflicts
+
+# This changes how InnoDB autoincrement locks are managed and is a requirement for Galera
+innodb_autoinc_lock_mode=2
+
+# Node IP address
+#wsrep_node_address=xxx.xxx.xxx.xxx (optional)
+# Cluster name
+wsrep_cluster_name=pxc-cluster
+
+#If wsrep_node_name is not specified,  then system hostname will be used
+wsrep_node_name=pxc-cluster-node-2    (change node name to 1 and 2 as needed)
+
+#pxc_strict_mode allowed values: DISABLED,PERMISSIVE,ENFORCING,MASTER
+pxc_strict_mode=DISABLED
+
+# SST method
+wsrep_sst_method=xtrabackup-v2
+
+#Authentication for SST method
+wsrep_sst_auth="sstuser:s3cretPass"
+---------------------------------
+
+#To perform State Snapshot Transfer using XtraBackup, set up a new user with proper privileges:
+CREATE USER sstuser@'%' identified by 's3cretPass';
+GRANT ALL ON *.* TO sstuser@'%';
+FLUSH PRIVILEGES;
+
+#Start the nodes with the following command
+/etc/init.d/mysql bootstrap-pxc
+
+Ref:
+https://www.howtoforge.com/tutorial/how-to-install-percona-xtradb-cluster-for-mysql/
